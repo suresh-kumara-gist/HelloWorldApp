@@ -1,7 +1,3 @@
 <resources>
     <string name="app_name">Hello World</string>
-    <string name="click_me">Click Me!</string>
-    <string name="reset">Reset</string>
-    <string name="loading">Loading...</string>
-    <string name="icon_description">App Icon</string>
 </resources>
