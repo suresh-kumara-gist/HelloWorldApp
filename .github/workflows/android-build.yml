@@ -1,10 +1,8 @@
-name: Android CI/CD - Auto Build APKs
+name: Android Build
 
 on:
   push:
-    branches: [ main, master, develop ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -12,8 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -21,103 +18,25 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-    
-    - name: Cache Gradle
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-    
-    - name: Grant execute permission for gradlew
+    - name: Make gradlew executable
       run: chmod +x gradlew
     
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug --stacktrace --no-daemon
+    - name: Build APK
+      run: ./gradlew build --no-daemon
     
-    - name: Build Release APK
-      run: ./gradlew assembleRelease --stacktrace --no-daemon
-    
-    - name: List Debug APK directory
+    - name: Find APK files
       run: |
-        echo "Checking debug APK location:"
-        ls -la app/build/outputs/apk/debug/ || echo "Debug directory not found"
-        echo ""
-        echo "Checking release APK location:"
-        ls -la app/build/outputs/apk/release/ || echo "Release directory not found"
-        echo ""
-        echo "Full output structure:"
-        find app/build/outputs -name "*.apk" 2>/dev/null || echo "No APK files found"
+        find . -name "*.apk" -type f
+        mkdir -p apk-output
     
-    - name: Rename APKs for download
+    - name: Copy APKs to output
       run: |
-        # Debug APK
-        if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-          cp app/build/outputs/apk/debug/app-debug.apk hello-world-v1.0-debug.apk
-          echo "✅ Debug APK found and renamed"
-        elif [ -f "app/build/outputs/apk/debug/app-debug-unsigned.apk" ]; then
-          cp app/build/outputs/apk/debug/app-debug-unsigned.apk hello-world-v1.0-debug.apk
-          echo "✅ Debug unsigned APK found and renamed"
-        else
-          echo "❌ Debug APK not found"
-          find app/build -name "*.apk" 2>/dev/null
-        fi
-        
-        # Release APK
-        if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-          cp app/build/outputs/apk/release/app-release.apk hello-world-v1.0-release.apk
-          echo "✅ Release APK found and renamed"
-        elif [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-          cp app/build/outputs/apk/release/app-release-unsigned.apk hello-world-v1.0-release.apk
-          echo "✅ Release unsigned APK found and renamed"
-        else
-          echo "⚠️ Release APK not found (this is okay for debug builds)"
-        fi
+        find . -name "*.apk" -exec cp {} apk-output/ \;
+        ls -la apk-output/
     
-    - name: Upload Debug APK
+    - name: Upload APKs
       uses: actions/upload-artifact@v4
       with:
-        name: hello-world-debug-apk
-        path: hello-world-v1.0-debug.apk
+        name: app-apks
+        path: apk-output/*.apk
         retention-days: 30
-        if-no-files-found: error
-    
-    - name: Upload Release APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: hello-world-release-apk
-        path: hello-world-v1.0-release.apk
-        retention-days: 30
-        if-no-files-found: warn
-    
-    - name: Build Summary
-      if: success()
-      run: |
-        echo "## ✅ Build Successful!" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📱 APK Files Ready for Download" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| APK Type | Filename | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|----------|----------|--------|" >> $GITHUB_STEP_SUMMARY
-        if [ -f "hello-world-v1.0-debug.apk" ]; then
-          SIZE=$(du -h hello-world-v1.0-debug.apk | cut -f1)
-          echo "| Debug | hello-world-v1.0-debug.apk | ✅ ($SIZE) |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| Debug | Not found | ❌ |" >> $GITHUB_STEP_SUMMARY
-        fi
-        if [ -f "hello-world-v1.0-release.apk" ]; then
-          SIZE=$(du -h hello-world-v1.0-release.apk | cut -f1)
-          echo "| Release | hello-world-v1.0-release.apk | ✅ ($SIZE) |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| Release | Not generated | ⚠️ |" >> $GITHUB_STEP_SUMMARY
-        fi
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📥 How to Download" >> $GITHUB_STEP_SUMMARY
-        echo "1. Scroll down to **Artifacts** section" >> $GITHUB_STEP_SUMMARY
-        echo "2. Click on **hello-world-debug-apk** or **hello-world-release-apk**" >> $GITHUB_STEP_SUMMARY
-        echo "3. Download and install on your Redmi Note 7" >> $GITHUB_STEP_SUMMARY
