@@ -19,12 +19,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false  // Set to false for GitHub build to ensure APK generation
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")  // Use debug signing for release too
         }
         debug {
             isMinifyEnabled = false
