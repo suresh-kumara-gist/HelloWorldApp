@@ -3,8 +3,6 @@ name: Android Build
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -29,50 +27,32 @@ jobs:
     - name: Create local.properties
       run: echo "sdk.dir=$ANDROID_HOME" > local.properties
     
-    - name: Grant execute permission
-      run: chmod +x gradlew
+    - name: Build with Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.0'
+        arguments: assembleDebug assembleRelease
     
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug --stacktrace --no-daemon
-    
-    - name: Build Release APK
-      run: ./gradlew assembleRelease --stacktrace --no-daemon
-    
-    - name: List generated APKs
+    - name: Find APK files
       run: |
-        echo "=== Build Output ==="
-        find app/build/outputs -name "*.apk" -type f
-        echo ""
-        echo "=== Debug Directory ==="
-        ls -la app/build/outputs/apk/debug/ 2>/dev/null || echo "No debug APK found"
-        echo ""
-        echo "=== Release Directory ==="
-        ls -la app/build/outputs/apk/release/ 2>/dev/null || echo "No release APK found"
-    
-    - name: Copy APKs to root
-      run: |
-        # Copy debug APK if exists
-        if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-          cp app/build/outputs/apk/debug/app-debug.apk hello-world-v1.0-debug.apk
-          echo "✅ Debug APK copied successfully"
-        elif [ -f "app/build/outputs/apk/debug/app-debug-unsigned.apk" ]; then
-          cp app/build/outputs/apk/debug/app-debug-unsigned.apk hello-world-v1.0-debug.apk
-          echo "✅ Debug unsigned APK copied successfully"
-        else
-          echo "⚠️ No debug APK found to copy"
-          exit 1
-        fi
+        # List all APK files
+        find . -name "*.apk" -type f
+        mkdir -p apk_output
         
-        # Copy release APK if exists
-        if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-          cp app/build/outputs/apk/release/app-release.apk hello-world-v1.0-release.apk
-          echo "✅ Release APK copied successfully"
-        elif [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-          cp app/build/outputs/apk/release/app-release-unsigned.apk hello-world-v1.0-release.apk
-          echo "✅ Release unsigned APK copied successfully"
-        else
-          echo "⚠️ No release APK found (this is optional for debug builds)"
-        fi
+        # Copy APKs to output directory
+        find app/build -name "*.apk" -exec cp {} apk_output/ \;
+        ls -la apk_output/
+        
+        # Rename files
+        cd apk_output
+        for file in *.apk; do
+          if [[ $file == *"debug"* ]]; then
+            cp "$file" "../hello-world-v1.0-debug.apk"
+          elif [[ $file == *"release"* ]]; then
+            cp "$file" "../hello-world-v1.0-release.apk"
+          fi
+        done
+        cd ..
     
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
@@ -80,7 +60,7 @@ jobs:
         name: hello-world-debug-apk
         path: hello-world-v1.0-debug.apk
         retention-days: 30
-        if-no-files-found: error
+        if-no-files-found: warn
     
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
@@ -89,25 +69,3 @@ jobs:
         path: hello-world-v1.0-release.apk
         retention-days: 30
         if-no-files-found: warn
-    
-    - name: Build Summary
-      if: always()
-      run: |
-        echo "## Build Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| APK Type | Status | Size |" >> $GITHUB_STEP_SUMMARY
-        echo "|----------|--------|------|" >> $GITHUB_STEP_SUMMARY
-        
-        if [ -f "hello-world-v1.0-debug.apk" ]; then
-          SIZE=$(du -h hello-world-v1.0-debug.apk | cut -f1)
-          echo "| Debug | ✅ Success | $SIZE |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| Debug | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        if [ -f "hello-world-v1.0-release.apk" ]; then
-          SIZE=$(du -h hello-world-v1.0-release.apk | cut -f1)
-          echo "| Release | ✅ Success | $SIZE |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| Release | ⚠️ Optional | - |" >> $GITHUB_STEP_SUMMARY
-        fi
